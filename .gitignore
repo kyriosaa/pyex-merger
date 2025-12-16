@@ -1,0 +1,3 @@
+excel_files/*
+!excel_files/README.md
+secrets.py
