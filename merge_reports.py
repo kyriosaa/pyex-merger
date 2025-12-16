@@ -5,12 +5,12 @@ import win32com.client as win32
 import glob
 import os
 import config
-import secrets
+import private
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import Alignment, PatternFill
 
-folder_path = secrets.PATH
+folder_path = private.PATH
 output_file = 'MasterReport.xlsx'
 
 def import_original_sheets(master_path, source_folder):
@@ -98,12 +98,20 @@ def merge_excel_sheets(path, output_name):
             # extract cells
             for col_name, cell_address in config.extraction_cells.items():
                 try:
-                    val = sheet[cell_address].value
-                    row_data[col_name] = val
+                    # check for list
+                    if isinstance(cell_address, list):
+                        values = []
+                        for addr in cell_address:
+                            val = sheet[addr].value
+                            if val:
+                                values.append(str(val))
+                        row_data[col_name] = " ".join(values) if values else None
+                    else:
+                        val = sheet[cell_address].value
+                        row_data[col_name] = val
                 except Exception as error:
                     row_data[col_name] = None
                     print(f"[ERROR] Could not read cell {cell_address} in {filename}")
-            
             all_data.append(row_data)
             print(f"Read {os.path.basename(filename)}")
             wb.close()
