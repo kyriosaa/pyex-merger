@@ -1,1 +1,1 @@
-If you're cloning this repo, make a **config.py** file & add your folder path to it
+If you're cloning this repo, make a **secrets.py** file & add your folder path to it

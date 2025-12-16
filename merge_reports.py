@@ -4,13 +4,13 @@ import pandas as pd
 import win32com.client as win32
 import glob
 import os
-import time
 import config
+import secrets
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import Alignment, PatternFill
 
-folder_path = config.PATH
+folder_path = secrets.PATH
 output_file = 'MasterReport.xlsx'
 
 def import_original_sheets(master_path, source_folder):
