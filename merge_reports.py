@@ -6,7 +6,6 @@ import glob
 import os
 import config
 import private
-from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import Alignment, PatternFill
 
@@ -25,7 +24,7 @@ def import_original_sheets(master_path, source_folder):
         return
     
     excel = win32.Dispatch('Excel.Application')
-    excel.Visible = True
+    excel.Visible = False
     excel.DisplayAlerts = False
     
     try:
@@ -59,6 +58,17 @@ def import_original_sheets(master_path, source_folder):
                                 new_name = f"{base_name[:28]}_{i+1}"
                             else:
                                 new_name = base_name[:31] # excel name limit is 31
+                            
+                            # check for name collision
+                            existing_names = [wb_master.Sheets(k).Name for k in range(1, wb_master.Sheets.Count)]
+                            
+                            original_new_name = new_name
+                            collision_count = 1
+                            while new_name in existing_names:
+                                suffix = f"_{collision_count}"
+                                max_len = 31 - len(suffix)
+                                new_name = f"{original_new_name[:max_len]}{suffix}"
+                                collision_count += 1
                                 
                             wb_master.Sheets(wb_master.Sheets.Count).Name = new_name
                             print(f"[SUCCESS] Finished sheet importing function from {os.path.basename(filename)}")
@@ -85,39 +95,50 @@ def merge_excel_sheets(path, output_name):
     print(f"{len(all_files)} excel files to process")
     all_data = [] # hold tables from each file
     
-    for filename in all_files:
-        if os.path.basename(filename) == output_name:
-            continue
-        
-        try:
-            wb = load_workbook(filename, data_only=True) # data_only=True ignores formulas
-            sheet = wb.active
-            row_data = {}
-            row_data['Source File'] = os.path.basename(filename)
+    excel = win32.Dispatch('Excel.Application')
+    excel.Visible = False
+    excel.DisplayAlerts = False
+    
+    try:
+        for filename in all_files:
+            if os.path.basename(filename) == output_name:
+                continue
+            # skip excel temp lock files
+            if os.path.basename(filename).startswith('~$'):
+                continue
             
-            # extract cells
-            for col_name, cell_address in config.extraction_cells.items():
-                try:
-                    # check for list
-                    if isinstance(cell_address, list):
-                        values = []
-                        for addr in cell_address:
-                            val = sheet[addr].value
-                            if val:
-                                values.append(str(val))
-                        row_data[col_name] = " ".join(values) if values else None
-                    else:
-                        val = sheet[cell_address].value
-                        row_data[col_name] = val
-                except Exception as error:
-                    row_data[col_name] = None
-                    print(f"[ERROR] Could not read cell {cell_address} in {filename}")
-            all_data.append(row_data)
-            print(f"Read {os.path.basename(filename)}")
-            wb.close()
-        except Exception as error:
-            row_data[col_name] = None
-            print(f"[ERROR] Could not read {filename}: {error}")
+            row_data = {}
+            try:
+                abs_path = os.path.abspath(filename)
+                wb = excel.Workbooks.Open(abs_path, ReadOnly=True, UpdateLinks=False)
+                sheet = wb.ActiveSheet
+                row_data['Source File'] = os.path.basename(filename)
+                
+                # extract cells
+                for col_name, cell_address in config.extraction_cells.items():
+                    try:
+                        # check for list
+                        if isinstance(cell_address, list):
+                            values = []
+                            for addr in cell_address:
+                                val = sheet.Range(addr).Value
+                                if val:
+                                    values.append(str(val))
+                            row_data[col_name] = " ".join(values) if values else None
+                        else:
+                            val = sheet.Range(cell_address).Value
+                            row_data[col_name] = val
+                    except Exception as error:
+                        row_data[col_name] = None
+                        print(f"[ERROR] Could not read cell {cell_address} in {filename}")
+                all_data.append(row_data)
+                print(f"Read {os.path.basename(filename)}")
+                wb.Close(SaveChanges=False)
+            except Exception as error:
+                row_data[col_name] = None
+                print(f"[ERROR] Could not read {filename}: {error}")
+    finally:
+        excel.Quit()
         
     # combine tables into one
     if all_data:
